@@ -1,4 +1,4 @@
 robot-framework-library
 =======================
 
-Library fo RobotFramework
+Library for RobotFramework
