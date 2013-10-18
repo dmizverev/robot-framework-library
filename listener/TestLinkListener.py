@@ -6,7 +6,6 @@ from TestlinkAPIClient import TestlinkAPIClient as testlink
 class TestLinkListener:
     """
     Фиксирование результатов тестирования в TestLink.\n
-    [https://intra.billing.ru/sites/DRSE/AUTO/RobotFramework/Wiki/%D0%98%D0%BD%D1%82%D0%B5%D0%B3%D1%80%D0%B0%D1%86%D0%B8%D1%8F/TestLink.aspx|Описание интеграции Robot Framework с TestLink ]
     """
 
     ROBOT_LISTENER_API_VERSION = 2
