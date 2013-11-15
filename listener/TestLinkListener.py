@@ -3,9 +3,10 @@
 from robot.api import logger
 from TestlinkAPIClient import TestlinkAPIClient as testlink
 
-class TestLinkListener:
+class TestLinkListener(object):
     """
     Фиксирование результатов тестирования в TestLink.\n
+    
     """
 
     ROBOT_LISTENER_API_VERSION = 2

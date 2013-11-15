@@ -10,9 +10,9 @@ except ImportError,info:
 if cx_Oracle.version<'3.0':
     logger.warn ("Very old version of cx_Oracle :",cx_Oracle.version)
 
-class OracleDB:
+class OracleDB(object):
     """
-    Библиотека для работы с базой данных Oracle
+    Библиотека для работы с базой данных Oracle.
     
     == Зависимости ==
     | cx_Oracle | http://cx-oracle.sourceforge.net | version > 3.0 |
@@ -30,17 +30,18 @@ class OracleDB:
         Подключение к Oracle.
         
         *Args:*\n
-        dbName: имя базы данных\n
-        dbUserName: имя пользователя\n
-        dbPassword: пароль пользователя\n
-        alias: псевдоним соединения\n
+        _dbName_ - имя базы данных;\n
+        _dbUserName_ - имя пользователя;\n
+        _dbPassword_ - пароль пользователя;\n
+        _alias_ - псевдоним соединения;\n
         
         *Returns:*\n
-        Индекс текущего соединения
+        Индекс текущего соединения.
         
         *Example:*\n
-        | Connect to oracle  |  rb60db  |  bis  |  password |
+        | Connect To Oracle  |  rb60db  |  bis  |  password |
         """
+
         try:
             logger.debug ('Connecting using : dbName=%s, dbUserName=%s, dbPassword=%s ' % (dbName, dbUserName, dbPassword))
             connection_string = '%s/%s@%s' % (dbUserName,dbPassword,dbName)
@@ -54,9 +55,10 @@ class OracleDB:
         Закрытие текущего соединения с Oracle.
         
         *Example:*\n
-        | Connect to oracle  |  rb60db  |  bis  |  password |
-        | Disconnect from oracle | 
+        | Connect To Oracle  |  rb60db  |  bis  |  password |
+        | Disconnect From Oracle | 
         """
+
         self._connection.close()
         
     def close_all_oracle_connections (self):
@@ -64,19 +66,19 @@ class OracleDB:
         Закрытие всех соединений с Oracle.
         
         Данный keyword используется для закрытия всех соединений в том случае, если их было открыто несколько штук.
-        Использовать [#disconnect from oracle|disconnect from oracle] и [#close all oracle connections|close all oracle connections] 
+        Использовать [#Disconnect From Oracle|Disconnect From Oracle] и [#Close All Oracle Connections|Close All Oracle Connections] 
         вместе нельзя.
         
-        После выполнения этого keyword индекс, возвращаемый [#connect to oracle|connect to oracle], начинается с 1.
+        После выполнения этого keyword индекс, возвращаемый [#Connect To Oracle|Connect To Oracle], начинается с 1.
         
         *Example:*\n
-        | Connect to oracle  |  rb60db  |  bis |   password  |  alias=bis |
-        | Connect to oracle  |  rb60db  |  bis_dcs  |  password  |  alias=bis_dsc |
-        | Switch oracle connection  |  bis |
-        | @{sql_out_bis}=  |  Execute sql string  |  select SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA') from dual |
-        | Switch oracle connection  |  bis_dsc |
-        | @{sql_out_bis_dsc}=  |  Execute sql string  |  select SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA') from dual |
-        | Close all oracle connections |
+        | Connect To Oracle  |  rb60db  |  bis |   password  |  alias=bis |
+        | Connect To Oracle  |  rb60db  |  bis_dcs  |  password  |  alias=bis_dsc |
+        | Switch Oracle Connection  |  bis |
+        | @{sql_out_bis}=  |  Execute Sql String  |  select SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA') from dual |
+        | Switch Oracle Connection  |  bis_dsc |
+        | @{sql_out_bis_dsc}=  |  Execute Sql String  |  select SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA') from dual |
+        | Close All Oracle Connections |
         """
         
         self._connection = self._cache.close_all()
@@ -85,35 +87,35 @@ class OracleDB:
         """
         Переключение между активными соединениями с Oracle, используя их индекс или псевдоним.
         
-        Псевдоним задается в keyword [#connect to oracle|connect to oracle], который также возвращает индекс соединения.
+        Псевдоним задается в keyword [#Connect To Oracle|Connect To Oracle], который также возвращает индекс соединения.
         
         *Args:*\n
-        index_or_alias: индекс соединения или его псевдоним
+        _index_or_alias_ - индекс соединения или его псевдоним;
         
         *Returns:*\n
-        Индекс предыдущего соединения
+        Индекс предыдущего соединения.
         
         *Example:* (switch by alias)\n
-        | Connect to oracle  |  rb60db  |  bis |   password  |  alias=bis |
-        | Connect to oracle  |  rb60db  |  bis_dcs  |  password  |  alias=bis_dsc |
-        | Switch oracle connection  |  bis |
-        | @{sql_out_bis}=  |  Execute sql string  |  select SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA') from dual |
-        | Switch oracle connection  |  bis_dsc |
-        | @{sql_out_bis_dsc}=  |  Execute sql string  |  select SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA') from dual |
-        | Close all oracle connections |
+        | Connect To Oracle  |  rb60db  |  bis |   password  |  alias=bis |
+        | Connect To Oracle  |  rb60db  |  bis_dcs  |  password  |  alias=bis_dsc |
+        | Switch Oracle Connection  |  bis |
+        | @{sql_out_bis}=  |  Execute Sql String  |  select SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA') from dual |
+        | Switch Oracle Connection  |  bis_dsc |
+        | @{sql_out_bis_dsc}=  |  Execute Sql String  |  select SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA') from dual |
+        | Close All Oracle Connections |
         =>\n
         @{sql_out_bis} = BIS\n
         @{sql_out_bis_dcs}= BIS_DCS
         
         *Example:* (switch by index)\n
-        | ${bis_index}=  |  Connect to oracle  |  rb60db  |  bis  |  password  |
-        | ${bis_dcs_index}=  |  Connect to oracle  |  rb60db  |  bis_dcs  |  password |
-        | @{sql_out_bis_dcs_1}=  |  Execute sql string  |  select SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA') from dual |
-        | ${previous_index}=  |  Switch oracle connection  |  ${bis_index} |
-        | @{sql_out_bis}=  |  Execute sql string  |  select SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA') from dual |
-        | Switch oracle connection  |  ${previous_index} |
-        | @{sql_out_bis_dcs_2}=  |  Execute sql string  |  select SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA') from dual |
-        | Close all oracle connections |
+        | ${bis_index}=  |  Connect To Oracle  |  rb60db  |  bis  |  password  |
+        | ${bis_dcs_index}=  |  Connect To Oracle  |  rb60db  |  bis_dcs  |  password |
+        | @{sql_out_bis_dcs_1}=  |  Execute Sql String  |  select SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA') from dual |
+        | ${previous_index}=  |  Switch Oracle Connection  |  ${bis_index} |
+        | @{sql_out_bis}=  |  Execute Sql String  |  select SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA') from dual |
+        | Switch Oracle Connection  |  ${previous_index} |
+        | @{sql_out_bis_dcs_2}=  |  Execute Sql String  |  select SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA') from dual |
+        | Close All Oracle Connections |
         =>\n
         ${bis_index}= 1\n
         ${bis_dcs_index}= 2\n
@@ -137,7 +139,7 @@ class OracleDB:
         Выполнение PL\SQL блока.
         
         *Args:*\n
-        plsqlStatement: PL\SQL блок\n
+        _plsqlStatement_ - PL\SQL блок;\n
         
         *Raises:*\n
         PLSQL Error: Ошибка выполнения PL\SQL; выводится сообщение об ошибке в кодировке той БД, где выполняется код.
@@ -163,6 +165,7 @@ class OracleDB:
         =>\n
         DatabaseError: ORA-20001: This is a custom error
         """
+
         cursor = None
         try:
             cursor = self._connection.cursor()
@@ -174,16 +177,16 @@ class OracleDB:
     
     def execute_plsql_block_with_dbms_output (self,plsqlStatement):
         """
-        Выполнение PL\SQL блока с dbms_output()
+        Выполнение PL\SQL блока с dbms_output().
         
         *Args:*\n
-        plsqlStatement: PL\SQL блок\n
+        _plsqlStatement_ - PL\SQL блок;\n
         
         *Raises:*\n
         PLSQL Error: Ошибка выполнения PL\SQL; выводится сообщение об ошибке в кодировке той БД, где выполняется код.
         
         *Returns:*\n
-        Список с значениями из функций Oracle dbms_output.put_line()
+        Список с значениями из функций Oracle dbms_output.put_line().
         
         *Example:*\n
         | *Settings* | *Value* |
@@ -204,11 +207,12 @@ class OracleDB:
         |    | ...            |              |                    |        dbms_output.put_line ('text '||a||', e-mail text'); |
         |    | ...            |              |                    |        dbms_output.put_line ('string 2 '); |
         |    | ...            |              |                    |     END; |
-        |    | @{dbms}=       | Execute plsql block with dbms output   |  ${statement} |
+        |    | @{dbms}=       | Execute Plsql Block With Dbms Output   |  ${statement} |
         =>\n
         | @{dbms} | text 5, e-mail text |
         | | string 2 |
         """
+
         cursor = None
         dbms_output = []
         try:
@@ -233,7 +237,7 @@ class OracleDB:
         Выполнение SQL выборки из БД.
         
         *Args:*\n
-        plsqlStatement: PL\SQL блок\n
+        _plsqlStatement_ - PL\SQL блок;\n
         
         *Raises:*\n
         PLSQL Error: Ошибка выполнения PL\SQL; выводится сообщение об ошибке в кодировке той БД, где выполняется код.
@@ -243,15 +247,14 @@ class OracleDB:
         
         *Example:*\n
         | @{query}= | Execute Sql String | select sysdate, sysdate+1 from dual | 
-        | Set test variable  |  ${sys_date}  |  ${query[0][0]} | 
-        | Set test variable  |  ${next_date}  |  ${query[0][1]} | 
+        | Set Test Variable  |  ${sys_date}  |  ${query[0][0]} | 
+        | Set Test Variable  |  ${next_date}  |  ${query[0][1]} | 
         """
-        cursor = None
 
+        cursor = None
         try:
             cursor = self._connection.cursor()
             self._execute_sql (cursor,plsqlStatement)
-            #self._connection.commit()
             return cursor.fetchall()
         finally:
             if cursor:
