@@ -43,7 +43,7 @@ class TestRailListener(object):
         _run_id -  the ID of the test run;
         _update_ - indicator to update test case in TestRail; if exist, then test will be updated.
         """
-          
+
         testrail_url = 'http://' + server + '/testrail/'
         self.client = APIClient(testrail_url)
         self.client.user = user
@@ -63,25 +63,30 @@ class TestRailListener(object):
         _name_ - the name of test case in Robot Framework\n
         _attrs_ - attributes of test case in Robot Framework
         """
-        
+
         case_id = self._getTestCaseIDFromTestTags (attrs['tags'])
         if attrs['status'] == 'PASS':
             status_id = 1
         else :
             status_id = 5
         if case_id:
-            result = self.client.send_post(
-                                           'add_result_for_case/' + str(self.run_id) + '/' + str(case_id),
-                                           { 'status_id': status_id, 'comment': attrs['message'] }
-            )
-            logger.info ('[TestRailListener] report result of test ' + case_id + ' to TestRail')
-            logger.info ('[TestRailListener] result for method add_result_for_case ' + json.dumps(result, sort_keys = True, indent = 4))
+            # Update test case
             if self.update:
+                logger.info ('[TestRailListener] update of test ' + case_id + ' in TestRail')
+                description = attrs['doc'] + '\n' + 'Path to test: ' + attrs['longname']
                 result = self.client.send_post(
-                                           'update_case/' + str(case_id),
-                                           { 'title': name, 'type_id': 1, 'custom_case_description': attrs['doc'] }
+                                               'update_case/' + case_id,
+                                               { 'title': name, 'type_id': 1, 'custom_case_description': description}
                 )
                 logger.info ('[TestRailListener] result for method update_case ' + json.dumps(result, sort_keys = True, indent = 4))
+            # Set test result
+            logger.info ('[TestRailListener] report result of test ' + case_id + ' to TestRail')
+            result = self.client.send_post(
+                                           'add_result_for_case/' + self.run_id + '/' + case_id,
+                                           { 'status_id': status_id, 'comment': attrs['message'] }
+            )
+            logger.info ('[TestRailListener] result for method add_result_for_case ' + json.dumps(result, sort_keys = True, indent = 4))
+
 
     def _getTestCaseIDFromTestTags(self, tags):
         """ 
