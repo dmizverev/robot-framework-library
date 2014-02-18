@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 
 import re
+import json
 from robot.api import logger
-from testrail import *
+from testrail import APIClient
 
 __author__ = "Dmitriy.Zverev"
 __license__ = "Apache License, Version 2.0"
