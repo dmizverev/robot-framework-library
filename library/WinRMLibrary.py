@@ -29,7 +29,9 @@ class WinRMLibrary(object):
 
     def create_session (self, alias, hostname, login, password):
         """
-        Create session with windows host. Does not support domain authentification.
+        Create session with windows host. 
+        
+        Does not support domain authentification.
         
         *Args:*\n
         _alias_ - robot framework alias to identify the session\n
@@ -61,7 +63,6 @@ class WinRMLibrary(object):
         Result object with methods: status_code, std_out, std_err.
         
         *Example:*\n
-        
         | ${params}=  | Create List  |  "/all" |
         | ${result}=  |  Run cmd  |  server  |  ipconfig  |  ${params} |
         | Log  |  ${result.status_code} |
@@ -79,7 +80,7 @@ class WinRMLibrary(object):
         """
 
         if params is not None:
-            log_cmd=command + ' '+' '.join(params)
+            log_cmd=command+' '+' '.join(params)
         else:
             log_cmd=command
         logger.info ('Run command on server with alias "%s": %s '%(alias, log_cmd))
@@ -87,7 +88,35 @@ class WinRMLibrary(object):
         result=self._session.run_cmd (command, params)
         return result
 
+    def run_ps (self, alias, script):
+        """
+        Run power shell script on remote mashine.
+        
+        *Args:*\n
+         _alias_ - robot framework alias to identify the session\n
+         _script_ -  power shell script\n
+        
+        *Returns:*\n
+         Result object with methods: status_code, std_out, std_err.
+        
+        *Example:*\n
+        
+        | ${result}=  |  Run ps  |  server  |  get-process iexplore|select -exp ws|measure-object -sum|select -exp Sum |
+        | Log  |  ${result.status_code} |
+        | Log  |  ${result.std_out} |
+        | Log  |  ${result.std_err} |
+        =>\n
+        | 0                         
+        | 56987648                         
+        |              
+        """
+
+        logger.info ('Run power shell script on server with alias "%s": %s '%(alias, script))
+        self._session=self._cache.switch(alias)
+        result=self._session.run_ps (script)
+        return result
+
     def delete_all_sessions(self):
-        """ Removes all the sessions """
+        """ Removes all sessions with windows hosts"""
 
         self._cache.empty_cache()
