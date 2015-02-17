@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 
 from robot.libraries.BuiltIn import BuiltIn
-from robot.api import logger
 import zipfile
 import os
 import shutil
@@ -9,48 +8,58 @@ import string
 
 class LogGrabber(object):
     """
-    Получение логов. \n
-    Перед проведением теста (сьюта) необходимо подготовить логи, а именно засечь номер последней строки лога.
-    После выполнения теста (сьюта) вырезаем из лога подсистемы только относящийся к тесту (сьюту) кусок,
-    основываясь на номере строки, полученной при подготовке лога.
-    Библиотека регистрируется как Listener, в начале теста происходит подготовка логов, в конце теста - загрузка логов.
+    Получение логов подсистем с удаленных серверов. \n
+    Библиотека оформлена в качестве [http://robotframework.org/robotframework/latest/RobotFrameworkUserGuide.html#test-libraries-as-listeners|listener],
+    в котором реализованы методы start_test и end_test. После подключения библиотеки вся работа с логами может происходить автоматически
+    без вызова дополнительных методов. После завершения теста со статусом FAILED будет скачена лишь та часть логов, которая была записана во время его проходжения.\n
+    Для работы библиотеки необходимо:\n
+    1. Создать переменную server_logs в python [http://robotframework.org/robotframework/latest/RobotFrameworkUserGuide.html#creating-variables-directly|variable file]
+    следующего вида:
+    | server_logs = {
+    |                 "tmpdir": "/tmp/",
+    |                 "servers": [
+    |                   {
+    |                     "hostname": "server.com",
+    |                     "port": 22,
+    |                     "username": "my_username",
+    |                     "password": "my_password_to_ssh",
+    |                     "subsystems": [
+    |                       {
+    |                         "name": "Apache_server",
+    |                         "logs": [
+    |                           {
+    |                             "path_to_log": "/var/log",
+    |                             "log_name": "access.log"
+    |                           },
+    |                           {
+    |                             "path_to_log": "/var/log",
+    |                             "log_name": "error*.log"
+    |                           }
+    |                         ]
+    |                       }
+    |                     ]
+    |                   }
+    |                 ]
+    |               }
+    Где:
+    - tmpdir - каталог для временных файлов на удаленном сервере
+    - hostname - имя хоста удаленного сервера
+    - port - порт подключения по ssh
+    - username\password - логин\пароль для подключения по ssh
+    - name - имя подсистемы, для которой собираются логи
+    - path_to_log - путь к логам подсистемы
+    - log_name - имя файла лога; могут использоваться wildcards аналогичные тем, что применяются в linux-команде find.
+    2. В тестах помимо LogGrabber подключить библиотеки:
+    - AdvancedLogging
+    - SSHLibrary
 
-    === Пример явного запуска ===
-    | *Settings*  |    *Value*                      |
-    | Library     | AdvancedLogging                 |
-    | Library     | SSHLibrary                      |
-    | Library     | ..${/}library${/}LogGrabber.py  |
-    | Variables   | ..${/}variable${/}global.py     |
-
-    | *Test cases*          | *Action*                  | *Argument*            |
-    | Example_test          | LogGrabber.prepare logs   |                       |
-    |                       | sleep                     | 5 m                   |
-    |                       | LogGrabber.download logs  |                       |
-
-    === Пример файла настройки ===
-    | server_logs = {"tmpdir": "[TEMP_DIR]",
-    |                "servers":[{
-    |                   "hostname":"[HOSTNAME]",
-    |                   "port":[PORT],
-    |                   "username": "[USERNAME]",
-    |                   "password": "[PASSWORD]",
-    |                   "subsystems":[{
-    |                              "name":"[SUBSYS_NAME]",
-    |                              "logs":[
-    |                                      {"path_to_log":"[LOG_PATH]",
-    |                                      "log_name":"[LOG_NAME]"
-    |                                      },
-    |                                      {"path_to_log":"[LOG_PATH]",
-    |                                      "log_name":"[LOG_NAME]"
-    |                                      }
-    |                              ]
-    |                             }]
-    |        }]
-    |      }
+    === Ограничения ===
+    Логи подсистем должны находится на Linux сервере с возможностью подключения к нему по ssh.
 
     === Зависимости ===
-    | robot framework | http://robotframework.org
-    | AdvancedLogging | http://git.billing.ru/cgit/PS_RF.git/tree/library/AdvancedLogging.py
+    | robot framework | http://robotframework.org |
+    | AdvancedLogging | http://git.billing.ru/cgit/PS_RF.git/tree/library/AdvancedLogging.py |
+    | SSHLibrary | http://robotframework.org/SSHLibrary/latest/SSHLibrary.html |
 
     """
     ROBOT_LIBRARY_SCOPE = 'GLOBAL'
@@ -65,12 +74,12 @@ class LogGrabber(object):
         # словарь с подготовленными логами
         self.prepared_logs = dict()
 
-    def _start_test(self, name, arrgs):
+    def _start_test(self, name, attrs):
         self.prepare_logs()
 
-    def _end_test(self, name, arrgs):
-        self.download_logs()
-
+    def _end_test(self, name, attrs):
+        if attrs['status'] != 'PASS':
+            self.download_logs()
 
     def _ssh_lib(self):
         return self.bi.get_library_instance("SSHLibrary")
@@ -85,8 +94,7 @@ class LogGrabber(object):
         записывается номер послнедней строки.
 
         """
-        # перебираем сервера из конфигурации
-
+        
         # Получаем информацию о логах подсистем
         self.logs=self.bi.get_variable_value('${server_logs}')
         # Системный разделитель для платформы запуска тестов
@@ -95,7 +103,7 @@ class LogGrabber(object):
         self.nix_separator = '/'
         # структура с описанием серверов, подсистем и логов
         self.prepared_logs["servers"] = []
-
+        # перебираем сервера из конфигурации
         for server in self.logs["servers"]:
             processed_server = dict()
             hostname = server["hostname"]
@@ -116,7 +124,6 @@ class LogGrabber(object):
                 # словарь обработанных подсистем
                 processed_subsys = dict()
                 processed_subsys["name"] = subsystem["name"]
-                subsys_name = subsystem["name"]
                 # список обработанных логов
                 processed_logs = []
                 # обрабатываем логи для текущей подсистемы
@@ -212,7 +219,7 @@ class LogGrabber(object):
         """
         zf = zipfile.ZipFile("%s.zip" % (dst), "w", zipfile.ZIP_DEFLATED)
         abs_src = os.path.abspath(src)
-        for root, dirs, files in os.walk(src):
+        for root, _, files in os.walk(src):
             for filename in files:
                 abs_name = os.path.abspath(os.path.join(root, filename))
                 arc_name = abs_name[len(abs_src) + 1:]
