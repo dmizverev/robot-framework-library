@@ -2,19 +2,27 @@
 
 import json
 import jsonschema
-import jsonpath
+from jsonpath_rw import parse
+from jsonselect import jsonselect
 
 class JsonValidator(object):
     """
     Библиотека для проверки json.
-    == Зависимости ==
-    | jsonschema | https://pypi.python.org/pypi/jsonschema |
-    | jsonpath | https://pypi.python.org/pypi/jsonpath |
+    Основана на: JSONSchema, JSONPath, JSONSelect.
+
     == Дополнительная информация == 
     - [ http://json-schema.org/ | Json Schema ]
     - [ http://www.jsonschema.net/ | Jsonschema generator ]
     - [ http://goessner.net/articles/JsonPath/ | JSONPath by Stefan Goessner ]
     - [ http://jsonpath.curiousconcept.com/ | JSONPath Tester ]
+    - [ http://jsonselect.org/ | JSONSelect]
+    - [ http://jsonselect.curiousconcept.com/ | JSONSelect Tester]
+
+    == Зависимости ==
+    | jsonschema | https://pypi.python.org/pypi/jsonschema |
+    | jsonpath-rw | https://pypi.python.org/pypi/jsonpath-rw |
+    | jsonselect | https://pypi.python.org/pypi/jsonselect |
+
     == Пример использования ==
     Пример json, записанного в файле json_example.json
     | { "store": {
@@ -54,29 +62,33 @@ class JsonValidator(object):
     | Library    | OperatingSystem |
     | *Test Cases* | *Action* | *Argument* | *Argument* |
     | Check element | ${json_example}=   | OperatingSystem.Get File |   ${CURDIR}${/}json_example.json |
-    | | Element should exist  |  ${json_example}  |  $..book[?(@.author=='Herman Melville')] |
+    | | Element should exist  |  ${json_example}  |  .author:contains("Evelyn Waugh") |
     """
 
-    ROBOT_LIBRARY_SCOPE = 'GLOBAL'
+    ROBOT_LIBRARY_SCOPE='GLOBAL'
 
     def _validate_json(self, checked_json, schema):
+        """
+        Проверка json по JSONSchema
+        """
+        
         try:
             jsonschema.validate(checked_json, schema)
         except jsonschema.ValidationError , e:
-            raise AssertionError ('Json validation error. Element: %s. Error: %s. ' % (e.path[0], e.message))
+            raise JsonValidatorError ('Element: %s. Error: %s. '%(e.path[0], e.message))
         except jsonschema.SchemaError , e:
-            raise AssertionError ('Json-schema error:' + e.message)
+            raise JsonValidatorError ('Json-schema error:'+e.message)
 
     def validate_jsonschema_from_file (self, json_string, path_to_schema):
         """
         Проверка json по схеме, загружаемой из файла.
         
         *Args:*\n
-        _json_string_ - json-строка; в дальнейшем сериализуется при помощи json.loads;\n
+        _json_string_ - json-строка;\n
         _path_to_schema_ - путь к файлу со схемой json;
         
         *Raises:*\n
-        ValueError in json.loads
+        JsonValidatorError
         
         *Example:*\n
         | *Settings* | *Value* |
@@ -85,13 +97,13 @@ class JsonValidator(object):
         | Simple | Validate jsonschema from file  |  {"foo":bar}  |  ${CURDIR}${/}schema.json |
         """
 
-        schema = open(path_to_schema).read()
-        load_input_json = self._parse_json (json_string)
+        schema=open(path_to_schema).read()
+        load_input_json=self.string_to_json (json_string)
 
         try:
-            load_schema = json.loads(schema)
+            load_schema=json.loads(schema)
         except ValueError, e:
-            raise AssertionError ('Error in schema: ' + e.message)
+            raise JsonValidatorError ('Error in schema: '+e.message)
 
         self._validate_json (load_input_json, load_schema)
 
@@ -100,11 +112,11 @@ class JsonValidator(object):
         Проверка json по схеме.
         
         *Args:*\n
-        _json_string_ - json-строка; в дальнейшем сериализуется при помощи json.loads;\n
-        _input_schema_ - схема в виде строки; в дальнейшем сериализуется при помощи json.loads.
+        _json_string_ - json-строка;\n
+        _input_schema_ - схема в виде строки;
         
         *Raises:*\n
-        ValueError in json.loads
+        JsonValidatorError
         
         *Example:*\n
         | *Settings* | *Value* |
@@ -114,38 +126,88 @@ class JsonValidator(object):
         | Simple | ${schema}=   | OperatingSystem.Get File |   ${CURDIR}${/}schema_valid.json |
         |  | Validate jsonschema  |  {"foo":bar}  |  ${schema} |
         """
-        
-        load_input_json = self._parse_json (json_string)
+
+        load_input_json=self.string_to_json (json_string)
 
         try:
-            load_schema = json.loads(input_schema)
+            load_schema=json.loads(input_schema)
         except ValueError, e:
-            raise AssertionError ('Error in schema: ' + e.message)
+            raise JsonValidatorError ('Error in schema: '+e.message)
 
         self._validate_json (load_input_json, load_schema)
 
-    def _parse_json (self, source):
-        #source = source.decode('ascii', 'ignore')
-        try:
-            load_input_json = json.loads(source)
-        except ValueError, e:
-            raise ValueError("Could not parse '%s' as JSON: %s" % (source, e))
-        return    load_input_json
-
-    def get_elements (self, json_string, expr, result_type = 'VALUE', debug = 0, use_eval = True):
+    def string_to_json (self, source):
         """
-        Возвращает список элементов из _json_string_, соответствующих jsonpath выражению.
+        Десериализация строки в json структуру.
         
         *Args:*\n
-        _json_string_ - json-строка; в дальнейшем сериализуется при помощи json.loads;\n
-        _expr_ - jsonpath выражение;\n
-        _result_type_ - тип возвращаемого значения; принимает значения VALUE - возвращается список из json-строк, 
-                        IPATH - возвращается список значений, значение по умолчанию: VALUE\n
-        _debug_ - выводить отладочную информацию, принимает значения 0 или 1;\n
-        _use_eval_ - вычисление значений в _expr_, значение по умолчанию True.
+        _source_ - json-строка
+        
+        *Return:*\n
+        Json структура
         
         *Raises:*\n
-        "Could not get elements by jsonpath expression" в случае отсутствия искомых элементов
+        JsonValidatorError
+        
+        *Example:*\n
+        | *Settings* | *Value* |
+        | Library    | JsonValidator |
+        | Library    | OperatingSystem |
+        | *Test Cases* | *Action* | *Argument* | *Argument* |
+        | String to json  | ${json_string}=   | OperatingSystem.Get File |   ${CURDIR}${/}json_example.json |
+        |                 |  ${json}= | String to json  |  ${json_string} |
+        |                 |  Log | ${json["store"]["book"][0]["price"]} |
+        =>\n
+        8.95
+        """
+        
+        try:
+            load_input_json=json.loads(source)
+        except ValueError, e:
+            raise JsonValidatorError("Could not parse '%s' as JSON: %s"%(source, e))
+        return    load_input_json
+
+    def json_to_string (self, source):
+        """
+        Cериализация json структуры в строку.
+        
+        *Args:*\n
+        _source_ - json структура
+        
+        *Return:*\n
+        Json строка
+        
+        *Raises:*\n
+        JsonValidatorError
+        
+        *Example:*\n
+        | *Settings* | *Value* |
+        | Library    | JsonValidator |
+        | Library    | OperatingSystem |
+        | *Test Cases* | *Action* | *Argument* | *Argument* |
+        | Json to string  | ${json_string}=   | OperatingSystem.Get File |   ${CURDIR}${/}json_example.json |
+        |                 | ${json}= | String to json |   ${json_string} |
+        |                 | ${string}=  |  Json to string  |  ${json} |
+        |                 | ${pretty_string}=  |  Pretty print json  |  ${string} |
+        |                 | Log to console  |  ${pretty_string} |
+        """
+        
+        try:
+            load_input_json=json.dumps(source)
+        except ValueError, e:
+            raise JsonValidatorError("Could serialize '%s' to JSON: %s"%(source, e))
+        return    load_input_json
+    
+    def get_elements (self, json_string, expr):
+        """
+        Возвращает список элементов из _json_string_, соответствующих [http://goessner.net/articles/JsonPath/|JSONPath] выражению.
+        
+        *Args:*\n
+        _json_string_ - json-строка;\n
+        _expr_ - JSONPath выражение;
+        
+        *Return:*\n
+        Список найденных элементов. Если элементы не найдены, то возвращается ``None``
         
         *Example:*\n
         | *Settings* | *Value* |
@@ -153,34 +215,61 @@ class JsonValidator(object):
         | Library    | OperatingSystem |
         | *Test Cases* | *Action* | *Argument* | *Argument* |
         | Get json elements | ${json_example}=   | OperatingSystem.Get File |   ${CURDIR}${/}json_example.json |
-        | |  ${json_elements} | Get elements  |  ${json_example}  |  $.store.book[*].author |
-        | Get json elements with eval | ${json_example}=   | OperatingSystem.Get File |   ${CURDIR}${/}json_example.json | use_eval=${True} |
-        | |  ${json_elements} | Get elements  |  ${json_example}  |  $..book[?(@.price<10)] |
-        | |  Log  |  ${json_elements[0]} |
+        |                   |  ${json_elements}= | Get elements  |  ${json_example}  |  $.store.book[*].author |
         =>\n
-        [u'Nigel Rees', u'Evelyn Waugh', u'Herman Melville', u'J. R. R. Tolkien']\n
-        {u'category': u'reference', u'price': 8.95, u'title': u'Sayings of the Century', u'author': u'Nigel Rees'}
+        | [u'Nigel Rees', u'Evelyn Waugh', u'Herman Melville', u'J. R. R. Tolkien']
         """
 
-        load_input_json = self._parse_json (json_string)
-        value = jsonpath.jsonpath (load_input_json, expr, result_type, int(debug), use_eval)
+        load_input_json=self.string_to_json (json_string)
+        # парсинг jsonpath
+        jsonpath_expr=parse(expr)
+        # список возвращаемых элементов
+        value_list=[]
+        for match in jsonpath_expr.find(load_input_json):
+            value_list.append(match.value)
+        if not value_list:
+            return None
+        else:
+            return value_list
 
-        if not value:
-            raise AssertionError ('Could not get elements by jsonpath expression %s' % expr)
-        return    value
-
-    def element_should_exist (self, json_string, expr, debug = 0, use_eval = True):
+    def select_elements (self, json_string, expr):
         """
-        Проверка существования одного или более элементов, соответствующих jsonpath выражению.
+        Возвращает список элементов из _json_string_, соответствующих [ http://jsonselect.org/ | JSONSelect] выражению.
         
         *Args:*\n
-        _json_string_ - json-строка; в дальнейшем сериализуется при помощи json.loads;\n
+        _json_string_ - json-строка;\n
+        _expr_ - JSONSelect выражение;
+        
+        *Return:*\n
+        Список найденных элементов. Если элементы не найдены, то ``None``
+        
+        *Example:*\n
+        | *Settings* | *Value* |
+        | Library    | JsonValidator |
+        | Library    | OperatingSystem |
+        | *Test Cases* | *Action* | *Argument* | *Argument* |
+        | Select json elements | ${json_example}=   | OperatingSystem.Get File |   ${CURDIR}${/}json_example.json |
+        |                      |  ${json_elements}= | Select elements  |  ${json_example}  |  .author:contains("Evelyn Waugh")~.price |
+        =>\n
+        | 12.99
+        """
+
+        load_input_json=self.string_to_json (json_string)
+        # парсинг jsonselect
+        jsonselect.Parser(load_input_json)
+        values=jsonselect.select(expr, load_input_json)
+        return values
+
+    def element_should_exist (self, json_string, expr):
+        """
+        Проверка существования одного или более элементов, соответствующих [ http://jsonselect.org/ | JSONSelect] выражению.
+        
+        *Args:*\n
+        _json_string_ - json-строка;\n
         _expr_ - jsonpath выражение;\n
-        _debug_ - выводить отладочную информацию, принимает значения 0 или 1;\n
-        _use_eval_ - вычисление значений в _expr_.
         
         *Raises:*\n
-        "Elements does not exist" в случае отсутствия искомых элементов
+        JsonValidatorError
         
         *Example:*\n
         | *Settings* | *Value* |
@@ -191,23 +280,25 @@ class JsonValidator(object):
         | | Element should exist  |  ${json_example}  |  $..book[?(@.author=='Herman Melville')] |
         """
 
-        try:
-            self.get_elements (json_string, expr, debug = debug, use_eval = use_eval)
-        except Exception:
-            raise AssertionError ('Elements %s does not exist' % expr)
+        value=self.select_elements (json_string, expr)
+        if value is None:
+            raise JsonValidatorError ('Elements %s does not exist'%expr)
 
-    def element_should_not_exist (self, json_string, expr, debug = 0, use_eval = True):
+    def element_should_not_exist (self, json_string, expr):
         """
-        Проверка отсутствия одного или более элементов, соответствующих jsonpath выражению.
+        Проверка отсутствия одного или более элементов, соответствующих [ http://jsonselect.org/ | JSONSelect] выражению.
         
-        Описание параметров и примеры смотри в кейворде [ #Element should exist | Element should exist ]
+        *Args:*\n
+        _json_string_ - json-строка;\n
+        _expr_ - jsonpath выражение;\n
+        
+        *Raises:*\n
+        JsonValidatorError
         """
 
-        try:
-            self.get_elements (json_string, expr, debug = debug, use_eval = use_eval)
-        except Exception:
-            return
-        raise AssertionError ('Elements %s exist but should not' % expr)
+        value=self.select_elements (json_string, expr)
+        if value is not None:
+            raise JsonValidatorError ('Elements %s exist but should not'%expr)
 
     def pretty_print_json (self, json_string):
         """
@@ -239,5 +330,8 @@ class JsonValidator(object):
         |    ]
         | }
         """
-        
-        return json.dumps(self._parse_json(json_string), indent=2, ensure_ascii=False)
+
+        return json.dumps(self.string_to_json(json_string), indent=2, ensure_ascii=False)
+
+class JsonValidatorError(Exception):
+    pass
