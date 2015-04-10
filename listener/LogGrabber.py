@@ -11,9 +11,6 @@ import string
 class LogGrabber(object):
     """
     Получение логов подсистем с удаленных серверов. \n
-    Библиотека оформлена в качестве [http://robotframework.org/robotframework/latest/RobotFrameworkUserGuide.html#test-libraries-as-listeners|listener],
-    в котором реализованы методы start_test, end_test, start_suite, end_suite. После подключения библиотеки вся работа с логами может происходить автоматически
-    без вызова дополнительных методов. После завершения теста со статусом FAILED будет скачена лишь та часть логов, которая была записана во время его проходжения.\n
     Принцип работы:
     - перед началом теста происходит подсчет количества строк в логах
     - после окончания теста, если количество строк изменилось, то будут скачены только добавленные в лог строки.
@@ -58,6 +55,39 @@ class LogGrabber(object):
     === Ограничения ===
     Логи подсистем должны находится на Linux сервере с возможностью подключения к нему по ssh.
 
+    === Использование ===
+    1. В качестве [http://robotframework.org/robotframework/latest/RobotFrameworkUserGuide.html#using-listener-interface|listener]:\n
+    ``pybot --listener LogGrabber /path/to/test_suite``\n
+    При этом нет необходимости изменять тесты. 
+    После завершения теста со статусом FAILED будет скачена лишь та часть логов, которая была записана во время его проходжения.
+    
+    2. В качестве библиотеки:\n
+    В этом случае можно скачивать логи вне зависимости от статуса теста
+    | *** Settings ***
+    | Documentation     Пример
+    | Library           LogGrabber
+    | Variables         variables.py
+    | Suite Setup        SuiteSetup
+    | Suite Teardown     SuiteTeardown
+    | 
+    | *** Test Cases ***
+    | Fail_test
+    |     FAIL    fail message
+    |     
+    | Passed_test
+    |     Pass Execution    passed message
+    |     
+    |     
+    | *** Keywords ***
+    | SuiteSetup
+    |     LogGrabber.Set connections
+    |     LogGrabber.Prepare logs
+    |     
+    | 
+    | SuiteTeardown
+    |     LogGrabber.Download logs
+    |     LogGrabber.Close connections
+
     === Зависимости ===
     | robot framework | http://robotframework.org |
     | AdvancedLogging | http://git.billing.ru/cgit/PS_RF.git/tree/library/AdvancedLogging.py |
@@ -65,27 +95,35 @@ class LogGrabber(object):
 
     """
     ROBOT_LIBRARY_SCOPE = 'GLOBAL'
+    ROBOT_LISTENER_API_VERSION = 2
     
     def __init__(self):
         # загрузка встроенных библиотек
         self.bi=BuiltIn()
         self.ssh=SSHLibrary()
         self.adv_log=AdvancedLogging()
-        # регистрируем Listener
-        self.ROBOT_LIBRARY_LISTENER = self
-        self.ROBOT_LISTENER_API_VERSION = 2
-
+ 
         # словарь с подготовленными логами
         self.prepared_logs = dict()
 
-    def _start_test(self, name, attrs):
+    def start_suite(self, name, attrs):
+        self.set_connections()
+
+    def start_test(self, name, attrs):
         self.prepare_logs()
 
-    def _end_test(self, name, attrs):
+    def end_test(self, name, attrs):
         if attrs['status'] != 'PASS':
             self.download_logs()
 
-    def _start_suite(self, name, attrs):
+    def end_suite(self, name, attrs):
+        self.close_connections()
+
+    def set_connections(self):
+        """
+        SSH-соединение с удаленными серверами
+        """
+        
         # Получаем информацию о логах подсистем
         self.logs=self.bi.get_variable_value('${server_logs}')
         # Системный разделитель для платформы запуска тестов
@@ -107,10 +145,7 @@ class LogGrabber(object):
             self.ssh.open_connection(hostname, ssh_alias, port)
             self.ssh.login(username, password)
             server["ssh_alias"] = ssh_alias
-
-    def _end_suite(self, name, attrs):
-        self.ssh.close_all_connections()
-
+    
     def prepare_logs(self):
         """
         Подготовка логов.
@@ -217,6 +252,12 @@ class LogGrabber(object):
             self._zip(logs_dir, res_arc_name)
             shutil.rmtree(logs_dir)
 
+    def close_connections(self):
+        """
+        Закрытие ssh-соединений с удаленными серверами
+        """
+        self.ssh.close_all_connections()
+    
     def _zip(self, src, dst):
         """
          Упаковка логов единый zip-архив
