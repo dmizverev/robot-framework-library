@@ -300,6 +300,48 @@ class JsonValidator(object):
         if value is not None:
             raise JsonValidatorError ('Elements %s exist but should not'%expr)
 
+    def update_json(self, json_string, expr, value, index=0):
+        """
+        Замена значения в json-строке.
+
+        *Args:*\n
+        _json_string_ - json-строка dict;\n
+        _expr_ - JSONPath выражение для определения заменяемого значения;\n
+        _value_ - значение, на которое будет произведена замена;\n
+        _index_ - устанавливает индекс для выбора элемента внутри списка совпадений, по-умолчанию равен 0;\n
+        
+        *Return:*\n
+        Изменённый json в виде словаря.
+
+        *Example:*\n
+        | *Settings* | *Value* |
+        | Library    | JsonValidator |
+        | Library    | OperatingSystem |
+        | *Test Cases* | *Action* | *Argument* | *Argument* |
+        | Update element | ${json_example}=   | OperatingSystem.Get File |   ${CURDIR}${/}json_example.json |
+        | | ${json_update}= | Update_json  |  ${json_example}  |  $..color  |  changed |
+        """
+
+        load_input_json=self.string_to_json (json_string)
+        matches = self._json_path_search(load_input_json, expr)
+
+        datum_object = matches[int(index)]
+
+        if not isinstance(datum_object, DatumInContext):
+            raise JsonValidatorError("Nothing found by the given json-path")
+
+        path = datum_object.path
+
+        # Изменить справочник используя полученные данные
+        # Если пользователь указал на список
+        if isinstance(path, Index):
+            datum_object.context.value[datum_object.path.index] = value
+        # Если пользователь указал на значение (string, bool, integer or complex)
+        elif isinstance(path, Fields):
+            datum_object.context.value[datum_object.path.fields[0]] = value
+            
+        return load_input_json
+
     def pretty_print_json (self, json_string):
         """
         Возврещает отформатированную json-строку _json_string_.\n
