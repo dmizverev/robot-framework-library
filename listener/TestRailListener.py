@@ -4,6 +4,7 @@ import re
 import json
 from robot.api import logger
 from testrail import APIClient
+from robot.libraries.BuiltIn import BuiltIn
 # from idlelib.rpc import _getattributes
 
 __author__ = "Dmitriy.Zverev"
@@ -34,7 +35,7 @@ class TestRailListener(object):
     Also title, description and references of this test will be updated in TestRail. Parameter "update" is optional.
     """
 
-    ROBOT_LISTENER_API_VERSION = 2
+    ROBOT_LISTENER_API_VERSION = 3
 
     def __init__(self, server, user, password, run_id, update = None):
         """
@@ -77,7 +78,12 @@ class TestRailListener(object):
             status_id = 5
         if case_id:
             # Add results to list
-            test_result = {'case_id': case_id, 'status_id': status_id, 'comment': attrs['message'], 'defects': defects}
+            test_result = {
+                'case_id': case_id,
+                'status_id': status_id,
+                'comment': attrs['message'],
+                'defects': defects
+            }
             self.results.append(test_result)
 
             # Update test case
@@ -86,16 +92,27 @@ class TestRailListener(object):
                 description = attrs['doc'] + '\n' + 'Path to test: ' + attrs['longname']
                 result = self.client.send_post(
                                                'update_case/' + case_id,
-                                               { 'title': name, 'type_id': 1, 'custom_case_description': description, 'refs': references}
+                                               {
+                                                   'title': name,
+                                                   'type_id': 1,
+                                                   'custom_case_description': description,
+                                                   'refs': references
+                                               }
                 )
-                logger.info ('[TestRailListener] result for method update_case ' + json.dumps(result, sort_keys = True, indent = 4))
+                logger.info (
+                    '[TestRailListener] result for method update_case '
+                    + json.dumps(result, sort_keys=True, indent=4)
+                )
+                tag = 'testRailId={case_id}'.format(case_id=case_id)
+                logger.info('[TestRailListener] remove tag {tag} from test case report'.format(tag=tag))
+                BuiltIn().run_keyword('remove tags', tag)
 
     def close (self):
         """
         Save test results for all tests in TestRail
         """
 
-        self.client.send_post('add_results_for_cases/' + self.run_id, { 'results':self.results })
+        self.client.send_post('add_results_for_cases/' + self.run_id, {'results': self.results})
 
     def _getTagsValue (self, tags):
         """
@@ -103,14 +120,14 @@ class TestRailListener(object):
         """
         attributes = dict()
         matchers = ['testrailid', 'defects', 'references']
-        for matcher in matchers :
+        for matcher in matchers:
             for tag in tags:
                 match = re.match(matcher, tag)
-                if match :
+                if match:
                     split_tag = tag.split('=')
                     tag_value = split_tag[1]
-                    attributes [matcher] = tag_value
+                    attributes[matcher] = tag_value
                     break
                 else:
-                    attributes [matcher] = None
+                    attributes[matcher] = None
         return attributes
