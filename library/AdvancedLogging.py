@@ -2,7 +2,9 @@
 
 from robot.libraries.BuiltIn import BuiltIn
 from robot.libraries.OperatingSystem import OperatingSystem
+from robot.running.context import EXECUTION_CONTEXTS
 import os
+
 
 class AdvancedLogging(object):
     """
@@ -34,64 +36,91 @@ class AdvancedLogging(object):
     File C:/Temp/LogFromServer/TestSuite name/Example_TestCase/error.log  with content from variable ${out}
     """
 
-    ROBOT_LIBRARY_SCOPE='TEST SUITE'
+    ROBOT_LIBRARY_SCOPE = 'TEST SUITE'
 
-    def __init__(self, output_dir = None, test_log_folder_name = 'Advanced_Logs'):
-        self.os=OperatingSystem()
-        self.bi=BuiltIn()
+    def __init__(self, output_dir=None, test_log_folder_name='Advanced_Logs'):
+        """ Initialisation
 
-        self.output_dir=output_dir
-        self.test_log_folder_name=test_log_folder_name
-        self.sep='/'
+        *Args*:\n
+            _output_dir_: output directory.\n
+            _test_log_folder_name_: name for log folder
+        """
+        self.os = OperatingSystem()
+        self.bi = BuiltIn()
+
+        self.output_dir = output_dir
+        self.test_log_folder_name = test_log_folder_name
+        self.sep = '/'
+
+    def _get_suite_names(self):
+        """
+        Get List with the current suite name and all its parents names
+
+        *Returns:*\n
+            List of the current suite name and all its parents names
+        """
+        suite = EXECUTION_CONTEXTS.current.suite
+        result = [suite.name]
+        while suite.parent:
+            suite = suite.parent
+            result.append(suite.name)
+        return reversed(result)
 
     @property
-    def _suite_folder (self):
+    def _suite_folder(self):
         """
         Define variables that are initialized by a call 'TestSuite'
+
+        *Returns:*\n
+            Path to suite folder.
         """
 
+        if self.output_dir is None:
+            self.output_dir = self.bi.get_variable_value('${OUTPUT_DIR}')
 
-        if self.output_dir==None :
-            self.output_dir=self.bi.get_variable_value('${OUTPUT_DIR}')
+        suite_name = self.sep.join(self._get_suite_names())
+        self.output_dir = os.path.normpath(self.output_dir)
+        self.test_log_folder_name = os.path.normpath(self.test_log_folder_name)
 
-        suite_name=self.bi.get_variable_value('${SUITE_NAME}')
-        suite_name=suite_name.replace('.', self.sep)
-        self.output_dir=os.path.normpath(self.output_dir)
-        self.test_log_folder_name=os.path.normpath(self.test_log_folder_name)
-
-        suite_folder=self.output_dir+self.sep+self.test_log_folder_name+self.sep+suite_name
+        suite_folder = self.output_dir + self.sep + self.test_log_folder_name + self.sep + suite_name
         return os.path.normpath(suite_folder)
 
-    def Write_Advanced_Testlog (self, filename, content):
+    def write_advanced_testlog(self, filename, content):
         """ 
         Inclusion content in additional log file
         
-        Return: path to filename
+        *Args:*\n
+        _filename_ - name of log file
+        _content_- content for logging
+
+        *Returns:*\n
+             Path to filename.
         
-        Example:
+        *Example:*\n
         | Write advanced testlog   | log_for_test.log  |  test message |
         =>\n
         File ${OUTPUT_DIR}/Advanced_Logs/<TestSuite name>/<TestCase name>/log_for_test.log with content 'test message'
         """
 
-        test_name=BuiltIn().get_variable_value('${TEST_NAME}')
+        test_name = BuiltIn().get_variable_value('${TEST_NAME}')
 
         if not test_name:
-            log_folder=self._suite_folder+self.sep
+            log_folder = self._suite_folder + self.sep
         else:
-            log_folder=self._suite_folder+self.sep+test_name
+            log_folder = self._suite_folder + self.sep + test_name
 
-        self.os.create_file(log_folder+self.sep+filename, content)
+        self.os.create_file(log_folder + self.sep + filename, content)
 
-        return os.path.normpath(log_folder+self.sep+filename)
+        return os.path.normpath(log_folder + self.sep + filename)
 
-    def Create_Advanced_Logdir (self):
+    def create_advanced_logdir(self):
         """  
         Creating a folder hierarchy for TestSuite
         
-        Return: path to folder
+        *Returns:*\n
+             Path to folder.
         
-        Example:
+        *Example:*\n
         | *Settings* | *Value* |
         | Library    |        AdvancedLogging |
         | Library    |       OperatingSystem |
@@ -103,12 +132,12 @@ class AdvancedLogging(object):
         File ${OUTPUT_DIR}/Advanced_Logs/<TestSuite name>/log_for_suite.log with content 'test message'
         """
 
-        test_name=self.bi.get_variable_value('${TEST_NAME}')
+        test_name = self.bi.get_variable_value('${TEST_NAME}')
 
         if not test_name:
-            log_folder=self._suite_folder+self.sep
+            log_folder = self._suite_folder + self.sep
         else:
-            log_folder=self._suite_folder+self.sep+test_name
+            log_folder = self._suite_folder + self.sep+test_name
 
         self.os.create_directory(os.path.normpath(log_folder))
 
