@@ -362,3 +362,61 @@ class RabbitMqManager(object):
         """
 
         return json.loads(self._get ('/vhosts'))
+
+    
+    def nodes(self):
+        """
+        List of nodes in the RabbitMQ cluster
+        """
+        return json.loads(self._get('/nodes'))
+
+    @property
+    def _cluster_name(self):
+        """
+        Name identifying this RabbitMQ cluster.
+        """
+        return json.loads(self._get('/cluster-name'))
+
+    def create_queues_by_name(self, name, auto_delete=False, durable=True, arguments={}, vhost='%2F'):
+        """
+        Create an individual queue.
+        """
+        node = self._cluster_name['name']
+        body = json.dumps({
+            "auto_delete": auto_delete,
+            "durable": durable,
+            "arguments": arguments,
+            "node": node
+        })
+        return self._put('/queues/' + self._quote_vhost(vhost) + '/' + urllib.quote(name), body=body)
+
+    def publish_message_by_name(self, queue, msg, vhost='%2F'):
+        """
+        Publish a message to a given exchange
+        """
+
+        name = "amq.default"
+        body = json.dumps({
+            "properties": {"delivery_mode": 1, "headers": {}},
+            "routing_key": queue,
+            "payload": msg,
+            "payload_encoding": "string"
+        })
+        routed = self._post('/exchanges/' + self._quote_vhost(vhost) +
+                            '/' + urllib.quote(name) + '/publish', body=body)
+        return json.loads(routed)
+
+    def get_messages_by_queue(self, queue, count=5, requeue=False, encoding="auto", truncate=50000, vhost='%2F'):
+        """
+        Get messages from a queue.
+        """
+
+        body = json.dumps({
+            "count": count,
+            "requeue": requeue,
+            "encoding": encoding,
+            "truncate": truncate
+        })
+        messages = self._post('/queues/' + self._quote_vhost(vhost) +
+                              '/' + urllib.quote(queue) + '/get', body=body)
+        return json.loads(messages)
