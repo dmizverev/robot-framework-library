@@ -344,6 +344,16 @@ class RabbitMqManager(object):
         for item in data :
             names.append(item['name'])
         return names
+    
+    def queue_exists(self, queue, vhost='%2F'):
+        """
+        Verifies that the one or more queues exists
+        """
+        names = self.get_names_of_queues_on_vhost()
+        if queue in names:
+            return True
+        else:
+            return False
 
     def delete_queues_by_name (self, name, vhost = '%2F'):
         """
@@ -390,14 +400,14 @@ class RabbitMqManager(object):
         })
         return self._put('/queues/' + self._quote_vhost(vhost) + '/' + urllib.quote(name), body=body)
 
-    def publish_message_by_name(self, queue, msg, vhost='%2F'):
+    def publish_message_by_name(self, queue, msg, properties, vhost='%2F'):
         """
         Publish a message to a given exchange
         """
 
         name = "amq.default"
         body = json.dumps({
-            "properties": {"delivery_mode": 1, "headers": {}},
+            "properties": properties,
             "routing_key": queue,
             "payload": msg,
             "payload_encoding": "string"
@@ -420,3 +430,10 @@ class RabbitMqManager(object):
         messages = self._post('/queues/' + self._quote_vhost(vhost) +
                               '/' + urllib.quote(queue) + '/get', body=body)
         return json.loads(messages)
+    
+    def purge_messages_by_queue(self, name, vhost='%2F'):
+        """
+        Purge contents of a queue.
+        """
+        return self._delete('/queues/' + self._quote_vhost(vhost) + '/' + urllib.quote(name) + '/contents')
+
